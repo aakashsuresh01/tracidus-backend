@@ -13,7 +13,6 @@ const xssClean = require('xss-clean'); // note: unmaintained
 const hpp = require('hpp');
 const Joi = require('joi');
 const winston = require('winston');
-const geoip = require('geoip-lite');  // Added geoip-lite
 
 const app = express();
 
@@ -43,29 +42,15 @@ const logger = winston.createLogger({
 
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
 
-// ----- Add geolocation logging middleware -----
-app.use((req, res, next) => {
-  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || '';
-  const geo = geoip.lookup(ip);
-
-  // Log IP and geolocation info
-  logger.info({
-    message: 'Incoming request geolocation',
-    ip,
-    geo
-  });
-
-  next();
-});
-
 // ----- security -----
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'same-site' },
-    contentSecurityPolicy: false
+    contentSecurityPolicy: false // Disable default CSP so we override below
   })
 );
 
+// Updated CSP to allow required external scripts, styles, and fonts
 app.use(
   helmet.contentSecurityPolicy({
     useDefaults: true,
@@ -204,6 +189,7 @@ function scanTextDetailed(text) {
 }
 
 // ----- routes -----
+
 // Health checks
 app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
 app.get('/readyz', (req, res) => res.json({ status: 'ready' }));
