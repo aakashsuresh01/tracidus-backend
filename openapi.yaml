@@ -1,0 +1,35 @@
+openapi: 3.0.3
+info:
+  title: Tracidus API
+  version: 1.0.0
+paths:
+  /api/analyze:
+    post:
+      summary: Analyze text for manipulation indicators
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                  maxLength: 10000
+      responses:
+        '200':
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  maskedPreview: { type: string }
+                  scaled: { type: object, additionalProperties: { type: integer } }
+                  hitsByCat: { type: object, additionalProperties: { type: integer } }
+                  riskScore: { type: integer }
+                  summary: { type: string }
+        '400': { description: Bad Request }
+        '429': { description: Too Many Requests }
+        '500': { description: Server Error }

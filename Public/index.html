@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TRACIDUS Mapper — Ultra Cyber (Pro)</title>
+  <meta name="description" content="Paste a suspicious message and watch a cinematic, real‑time TRACIDUS cyber‑analysis unfold. 100% local.">
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            cyberBlue: "#00eaff",
+            cyberDark: "#070b14",
+            cyberDeep: "#050812",
+            cyberAccent: "#0f1a2f",
+            cyberGlow: "#35f0ff",
+            acid: "#8affc1",
+            magenta: "#ff55dd"
+          },
+          fontFamily: {
+            display: ["DM Sans", "ui-sans-serif", "system-ui"],
+            mono: ["Sono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"]
+          },
+          animation: {
+            glow: "glow 2.2s ease-in-out infinite alternate",
+            float: "float 8s ease-in-out infinite",
+            floatSlow: "float 16s ease-in-out infinite",
+            fadeIn: "fadeIn 1.2s ease forwards",
+            pulseSlow: "pulse 2.4s ease-in-out infinite",
+            marquee: "marquee 26s linear infinite",
+            marquee2: "marquee2 26s linear infinite"
+          },
+          keyframes: {
+            glow: {
+              "0%": { textShadow: "0 0 4px #00eaff, 0 0 10px #00eaff" },
+              "100%": { textShadow: "0 0 18px #00eaff, 0 0 32px #00eaff" }
+            },
+            float: {
+              "0%,100%": { transform: "translateY(0px)" },
+              "50%": { transform: "translateY(-10px)" }
+            },
+            fadeIn: {
+              from: { opacity: 0, transform: "translateY(10px)" },
+              to: { opacity: 1, transform: "translateY(0)" }
+            },
+            marquee: { from: { transform: "translateX(0)" }, to: { transform: "translateX(-50%)" } },
+            marquee2:{ from: { transform: "translateX(-50%)" }, to: { transform: "translateX(0)" } }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Vendor libs for motion and effects -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.28/bundled/lenis.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vanilla-tilt@1.8.1/dist/vanilla-tilt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* Grid + starfield background canvas sits behind everything */
+    #fx-canvas, #grid-canvas { position: fixed; inset: 0; z-index: -2; }
+    #noise { position: fixed; inset: -50px; pointer-events:none; z-index: -1; opacity:.05; background-image:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23n)" opacity="1"/></svg>'); mix-blend-mode:overlay }
+    /* Custom scrollbars */
+    ::-webkit-scrollbar{ width:10px; height:10px }
+    ::-webkit-scrollbar-thumb{ background:linear-gradient(180deg,rgba(53,240,255,.6),rgba(0,234,255,.25)); border-radius:9999px }
+    /* Cursor aura */
+    .cursor { position: fixed; width:36px; height:36px; border-radius:9999px; border:1px solid rgba(0,234,255,.6); box-shadow:0 0 40px rgba(0,234,255,.4); pointer-events:none; mix-blend-mode:screen; transform:translate(-50%,-50%); z-index: 9999; }
+    .cursor-dot { position: fixed; width:6px; height:6px; border-radius:9999px; background:#00eaff; pointer-events:none; transform:translate(-50%,-50%); z-index: 9999; }
+    /* Neon mark for highlights */
+    mark.neon { background: rgba(0,234,255,0.18); color:#e6fdff; padding:0 .15rem; border-radius:.25rem; box-shadow:0 0 10px rgba(0,234,255,0.5) inset; }
+  </style>
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;800&family=Sono:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-cyberDeep text-cyberBlue font-mono selection:bg-cyan-300/20 selection:text-cyberBlue/90">
+  <!-- Background FX -->
+  <canvas id="grid-canvas"></canvas>
+  <canvas id="fx-canvas"></canvas>
+  <div id="noise"></div>
+  <div class="cursor"></div>
+  <div class="cursor-dot"></div>
+
+  <!-- Top Glow Beams -->
+  <div aria-hidden class="pointer-events-none fixed inset-x-0 -top-24 h-48 blur-3xl" style="background:radial-gradient(60% 80% at 50% 0%, rgba(0,234,255,.25), transparent 60%), radial-gradient(40% 60% at 15% 0%, rgba(138,255,193,.18), transparent 60%), radial-gradient(40% 60% at 85% 0%, rgba(255,85,221,.18), transparent 60%)"></div>
+
+  <!-- NAV -->
+  <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-md border-b border-cyan-400/10 bg-cyberDeep/50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+      <div class="flex items-center gap-2 font-display font-extrabold tracking-wide text-[15px]">
+        <span class="h-3 w-3 rounded-full bg-cyan-300 shadow-[0_0_20px_#00eaff]"></span>
+        TRACIDUS <span class="text-cyan-300/80">.mapper</span>
+      </div>
+      <div class="ml-auto hidden md:flex items-center gap-4 text-cyberBlue/70 text-xs">
+        <a href="#app" class="hover:text-cyberBlue">App</a>
+        <a href="#how" class="hover:text-cyberBlue">How it works</a>
+        <a href="#radar" class="hover:text-cyberBlue">Radar</a>
+        <a href="#faq" class="hover:text-cyberBlue">FAQ</a>
+        <a href="#" id="soundToggle" class="px-3 py-1 rounded-full border border-cyan-400/30 hover:bg-cyan-400/10">FX</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header class="relative overflow-hidden pt-28 md:pt-32">
+    <div class="max-w-7xl mx-auto px-6">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+        <div>
+          <h1 class="font-display font-extrabold leading-tight text-4xl md:text-6xl tracking-tight animate-glow">The World's First<br><span class="text-cyberGlow">Psychological Cybercrime Mapper</span></h1>
+          <p class="mt-4 text-cyberBlue/80 max-w-prose">Paste a suspicious message and watch TRACIDUS map persuasion vectors in real‑time with neon radar, highlights, and explainable breakdowns. <span class="text-cyberBlue/60">Everything runs locally.</span></p>
+          <div class="mt-6 flex flex-wrap gap-3">
+            <a href="#app" class="magnetic inline-flex items-center gap-2 bg-cyberBlue text-cyberDeep font-bold px-5 py-3 rounded-2xl shadow-[0_0_24px_#00eaff] hover:scale-[1.02] transition">⚡ Launch Scanner</a>
+            <a href="#how" class="magnetic inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-cyan-400/30 hover:bg-cyan-400/10">👁 Explainer</a>
+          </div>
+          <div class="mt-6 flex items-center gap-3 text-xs text-cyberBlue/60">
+            <span class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span> 100% local</span>
+            <span class="opacity-30">•</span>
+            <span>Zero network calls</span>
+            <span class="opacity-30">•</span>
+            <span id="counterHero">0 scans on this device</span>
+          </div>
+        </div>
+        <!-- Floating hero visual -->
+        <div class="relative h-[420px] lg:h-[520px]">
+          <div class="absolute inset-4 rounded-3xl border border-cyan-400/30 bg-gradient-to-br from-cyan-400/5 via-cyan-300/5 to-transparent shadow-[0_0_40px_rgba(0,234,255,.15)] [transform-style:preserve-3d]" data-tilt data-tilt-max="6" data-tilt-speed="400" data-tilt-glare data-tilt-max-glare="0.2">
+            <div class="absolute -top-8 -left-8 h-36 w-36 rounded-full blur-2xl bg-cyan-300/20 animate-float"></div>
+            <div class="absolute -bottom-10 -right-10 h-48 w-48 rounded-full blur-2xl bg-magenta/20 animate-floatSlow"></div>
+            <div class="p-6 md:p-8">
+              <div class="text-xs uppercase tracking-[0.25em] text-cyberBlue/60">TRACIDUS Radar</div>
+              <div class="mt-4 h-[300px] rounded-xl overflow-hidden border border-cyan-400/20 bg-cyberDeep/60 flex items-center justify-center">
+                <canvas id="radarCanvasHero" class="w-full h-full"></canvas>
+              </div>
+              <div class="mt-4 grid grid-cols-3 gap-3 text-center text-xs">
+                <div class="rounded-xl border border-cyan-400/20 py-2 bg-cyberDeep/60">Latency <div class="font-bold text-cyberBlue">~0 ms</div></div>
+                <div class="rounded-xl border border-cyan-400/20 py-2 bg-cyberDeep/60">Privacy <div class="font-bold text-emerald-300">Local</div></div>
+                <div class="rounded-xl border border-cyan-400/20 py-2 bg-cyberDeep/60">Style <div class="font-bold text-cyberGlow">Neon</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Infinite marquee pills (igloo‑ish energy) -->
+    <div class="mt-16 overflow-hidden border-y border-cyan-400/10 bg-cyberDeep/40">
+      <div class="py-3 flex whitespace-nowrap [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+        <div class="animate-marquee flex gap-6 pr-6">
+          <span class="pill">Trust</span><span class="pill">Authority</span><span class="pill">Consensus</span><span class="pill">Intimidation</span><span class="pill">Deception</span><span class="pill">Urgency</span><span class="pill">Scarcity</span><span class="pill">Reciprocity</span>
+        </div>
+        <div class="animate-marquee2 flex gap-6 pr-6" aria-hidden="true">
+          <span class="pill">Trust</span><span class="pill">Authority</span><span class="pill">Consensus</span><span class="pill">Intimidation</span><span class="pill">Deception</span><span class="pill">Urgency</span><span class="pill">Scarcity</span><span class="pill">Reciprocity</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- APP SECTION -->
+<main id="app" class="relative">
+  <div class="max-w-7xl mx-auto px-6 py-16 lg:py-20">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      
+      <!-- Left Side -->
+      <div class="space-y-4">
+        <h2 class="font-display text-2xl md:text-3xl font-extrabold animate-glow">Paste message</h2>
+        <textarea id="input" rows="8"
+          class="w-full p-5 border-2 border-cyan-400/30 bg-cyberDeep/80 text-cyberBlue rounded-2xl resize-y focus:ring-2 focus:ring-cyberBlue/70 focus:outline-none transition-all"
+          placeholder="⚡ Paste suspicious message here..."></textarea>
+
+        <!-- Buttons -->
+        <div class="flex flex-wrap gap-3 items-center">
+          <button id="scanBtn"
+            class="magnetic bg-cyberBlue text-cyberDeep px-5 py-2 rounded-2xl font-bold hover:scale-105 hover:shadow-[0_0_32px_#00eaff] transition">⚡
+            Scan</button>
+          <button id="clearBtn"
+            class="magnetic bg-transparent border border-cyan-400/40 px-5 py-2 rounded-2xl hover:bg-cyan-400/10 transition">🧹
+            Clear</button>
+          <button id="sampleBtn"
+            class="magnetic bg-emerald-400 text-black px-5 py-2 rounded-2xl font-bold hover:scale-105 hover:shadow-[0_0_24px_rgba(52,211,153,.6)] transition">🎯
+            Use Sample</button>
+          <button id="sample2Btn"
+            class="magnetic bg-violet-400 text-black px-5 py-2 rounded-2xl font-bold hover:scale-105 transition">🛰️
+            Use Sample 2</button>
+
+          <!-- Counter -->
+          <div class="ml-auto flex items-center gap-2 text-xs text-cyberBlue/70">
+            <span>Local Transparency Counter:</span>
+            <span id="counter" class="text-cyberGlow font-bold">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Side -->
+      <div class="space-y-4">
+        <h2 class="font-display text-2xl md:text-3xl font-extrabold animate-glow">Highlighted analysis</h2>
+        <div id="highlighted"
+          class="h-[240px] overflow-auto leading-relaxed bg-cyberDeep/70 border-2 border-cyan-400/20 rounded-2xl p-5"></div>
+
+        <p class="text-xs text-cyberBlue/60">Matches are <mark class="neon">highlighted</mark> by category color.</p>
+
+        <!-- Color Legend -->
+        <div class="mt-3 text-xs text-cyberBlue/70 space-y-1">
+          <p><span
+              class="px-2 py-0.5 rounded bg-red-500/30 text-red-300 font-bold">Red</span> = Critical / High-risk (legal
+            threats, penalties, severe urgency)</p>
+          <p><span
+              class="px-2 py-0.5 rounded bg-yellow-500/30 text-yellow-300 font-bold">Yellow</span> = Medium-risk (action
+            prompts, suspension, warnings)</p>
+          <p><span
+              class="px-2 py-0.5 rounded bg-green-500/30 text-green-300 font-bold">Green</span> = Low-risk (neutral or
+            informative terms)</p>
+          <p><span
+              class="px-2 py-0.5 rounded bg-cyan-500/30 text-cyan-300 font-bold">Cyan</span> = General highlight /
+            contextual emphasis</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrics Row (Overall Risk + Radar side by side) -->
+<div id="metrics" class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-12">
+  
+  <!-- Risk Gauge + Score -->
+  <section
+    class="bg-cyberDeep/70 border border-cyan-400/30 rounded-2xl p-6 [transform-style:preserve-3d]"
+    data-tilt data-tilt-max="6" data-tilt-speed="400">
+    <h3 class="text-xl font-semibold animate-glow">Overall Risk</h3>
+    <div class="mt-3">
+      <div class="w-full bg-cyberAccent/60 rounded-full h-3">
+        <div id="riskBar" class="h-3 rounded-full"
+          style="width:0%; background: linear-gradient(90deg,#11f7ff,#00a9ff);"></div>
+      </div>
+      <div class="mt-2 flex items-center gap-3">
+        <div id="riskScore" class="text-4xl font-extrabold">0</div>
+        <div id="riskTag"
+          class="text-xs px-2 py-1 rounded-full border border-cyan-400/40">Neutral</div>
+      </div>
+      <p id="riskNote" class="text-xs text-cyberBlue/70 mt-1">No severe indicators detected.</p>
+    </div>
+
+    <!-- Buttons -->
+    <div class="mt-4 grid grid-cols-3 gap-3">
+      <button id="exportPngBtn"
+        class="magnetic bg-blue-500 text-black px-3 py-2 rounded-xl font-bold hover:scale-105">🖼️ Download Chart</button>
+      <button id="exportJsonBtn"
+        class="magnetic bg-teal-400 text-black px-3 py-2 rounded-xl font-bold hover:scale-105">📄 Export JSON</button>
+      <button id="copySummaryBtn"
+        class="magnetic bg-cyberBlue text-black px-3 py-2 rounded-xl font-bold hover:scale-105">📋 Copy Summary</button>
+    </div>
+  </section>
+
+  <!-- TRACIDUS Radar -->
+  <section class="bg-cyberDeep/70 border border-cyan-400/30 rounded-2xl p-6 lg:col-span-2 [transform-style:preserve-3d]"
+    data-tilt data-tilt-max="6" data-tilt-speed="400">
+    <h3 class="text-xl font-semibold animate-glow">TRACIDUS Radar</h3>
+    <div class="mt-3 bg-cyberDeep border border-cyan-400/30 p-3 rounded-2xl shadow-inner" style="height:340px;">
+      <canvas id="radarCanvas" class="w-full h-full"></canvas>
+    </div>
+  </section>
+
+</div>
+
+
+      <!-- Threat Summary + Explainability -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-10">
+        <section class="bg-cyberDeep/70 border border-cyan-400/30 rounded-2xl p-6">
+          <h3 class="text-xl font-semibold animate-glow">Threat Summary</h3>
+          <p id="summary" class="text-cyberBlue mt-2">No strong manipulation signals detected.</p>
+          <h4 class="mt-4 font-medium">⚔ Action Tip</h4>
+          <p class="text-cyberBlue/80">Never click unknown links. Verify the sender on a separate channel. Report requests for money or credentials immediately.</p>
+          <div class="mt-4 text-sm">
+            <span class="font-medium">Badges:</span>
+            <span id="badges" class="text-cyberBlue/80">None yet. Keep scanning!</span>
+          </div>
+        </section>
+
+        <section class="bg-cyberDeep/70 border border-cyan-400/30 rounded-2xl p-6">
+          <h3 class="text-xl font-semibold animate-glow">Explainability</h3>
+          <p class="text-cyberBlue/70 text-sm">Matched phrases grouped by category.</p>
+          <div id="explain" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" class="relative py-16 lg:py-24 border-t border-cyan-400/10">
+    <div class="max-w-7xl mx-auto px-6">
+      <h3 class="font-display text-2xl md:text-3xl font-extrabold text-center animate-glow">How TRACIDUS thinks</h3>
+      <div class="mt-8 grid md:grid-cols-3 gap-6">
+        <div class="step">
+          <div class="step-badge">1</div>
+          <h4 class="step-title">Token scan</h4>
+          <p class="step-text">Keywords and patterns mapped to 8 persuasion vectors with false‑positive control.</p>
+        </div>
+        <div class="step">
+          <div class="step-badge">2</div>
+          <h4 class="step-title">Vector weighting</h4>
+          <p class="step-text">Axes normalized to 0–100. Risk = weighted mix + lure and deadline boosters.</p>
+        </div>
+        <div class="step">
+          <div class="step-badge">3</div>
+          <h4 class="step-title">Explainable output</h4>
+          <p class="step-text">Highlights, radar, badges, and a human‑readable summary you can paste anywhere.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" class="py-16 lg:py-24">
+    <div class="max-w-5xl mx-auto px-6">
+      <h3 class="font-display text-2xl md:text-3xl font-extrabold text-center animate-glow">FAQ</h3>
+      <div class="mt-8 grid gap-4">
+        <details class="group rounded-2xl border border-cyan-400/20 p-4 bg-cyberDeep/60">
+          <summary class="cursor-pointer list-none flex items-center justify-between font-semibold">Does this send data anywhere?
+            <span class="transition group-open:rotate-180">▾</span>
+          </summary>
+          <p class="mt-2 text-cyberBlue/80">No. The simulation runs entirely inside your browser.</p>
+        </details>
+        <details class="group rounded-2xl border border-cyan-400/20 p-4 bg-cyberDeep/60">
+          <summary class="cursor-pointer list-none flex items-center justify-between font-semibold">Can I export results?
+            <span class="transition group-open:rotate-180">▾</span>
+          </summary>
+          <p class="mt-2 text-cyberBlue/80">Yes. Download the radar as PNG or a JSON report, or copy the summary.</p>
+        </details>
+      </div>
+      <p class="text-center text-xs text-cyberBlue/60 mt-8">⚡ Simulation runs 100% locally in your browser. No data is sent anywhere. ⚡</p>
+    </div>
+  </section>
+
+  <footer class="border-t border-cyan-400/10 py-8 text-center text-cyberBlue/60 text-xs">Built with ❤️ for defenders. TRACIDUS vPro</footer>
+
+  <style>
+    .pill{ display:inline-flex; align-items:center; gap:.5rem; padding:.35rem .8rem; border-radius:9999px; border:1px solid rgba(0,234,255,.25); background:linear-gradient(180deg, rgba(0,234,255,.08), rgba(0,234,255,.03)); font-weight:600; font-size:.75rem }
+    .step{ position:relative; border:1px solid rgba(0,234,255,.2); background:linear-gradient(180deg,rgba(0,234,255,.06),rgba(0,234,255,.02)); border-radius:1rem; padding:1rem }
+    .step-badge{ position:absolute; top:-12px; left:-12px; height:36px; width:36px; display:grid; place-items:center; border-radius:9999px; border:1px solid rgba(0,234,255,.35); background:radial-gradient(circle at 30% 30%, rgba(0,234,255,.7), transparent 60%); backdrop-filter: blur(6px); font-weight:800 }
+    .step-title{ font-weight:800; font-family:DM Sans, ui-sans-serif; letter-spacing:.02em }
+    .step-text{ color:rgba(190,240,255,.75) }
+  </style>
+
+  <script>
+    // ====== Animated Backgrounds ======
+    const gridCanvas = document.getElementById('grid-canvas');
+    const fxCanvas = document.getElementById('fx-canvas');
+    const gctx = gridCanvas.getContext('2d');
+    const fctx = fxCanvas.getContext('2d');
+
+    function resizeCanvases(){
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      [gridCanvas, fxCanvas].forEach(cv=>{ cv.width = innerWidth*dpr; cv.height = innerHeight*dpr; cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px';});
+      gctx.setTransform(dpr,0,0,dpr,0,0); fctx.setTransform(dpr,0,0,dpr,0,0);
+    }
+    resizeCanvases(); addEventListener('resize', resizeCanvases);
+
+    // Neon grid
+    function drawGrid(t){
+      gctx.clearRect(0,0,gridCanvas.width,gridCanvas.height);
+      gctx.save();
+      gctx.globalAlpha = 0.6;
+      const spacing = 46;
+      gctx.strokeStyle = 'rgba(0,234,255,0.08)';
+      for(let x = 0; x < innerWidth; x += spacing){ gctx.beginPath(); gctx.moveTo(x,0); gctx.lineTo(x,innerHeight); gctx.stroke(); }
+      for(let y = (t*0.06)%spacing; y < innerHeight; y += spacing){ gctx.beginPath(); gctx.moveTo(0,y); gctx.lineTo(innerWidth,y); gctx.stroke(); }
+      gctx.restore();
+    }
+
+    // Starfield particles
+    const stars = Array.from({length: 140}, ()=>({ x: Math.random()*innerWidth, y: Math.random()*innerHeight, z: Math.random()*1+0.3, r: Math.random()*1.5+0.3 }));
+    function drawFX(t){
+      fctx.clearRect(0,0,fxCanvas.width,fxCanvas.height);
+      fctx.save();
+      for(const s of stars){
+        const twinkle = (Math.sin(t*0.002 + s.x*0.01)+1)/2; // 0..1
+        fctx.fillStyle = `rgba(0,234,255,${0.15 + twinkle*0.55})`;
+        const x = (s.x + Math.sin(t*0.0003 + s.y*0.01)*20*s.z);
+        const y = (s.y + Math.cos(t*0.0004 + s.x*0.01)*10*s.z);
+        fctx.beginPath(); fctx.arc(x,y,s.r,0,Math.PI*2); fctx.fill();
+      }
+      fctx.restore();
+    }
+
+    function loop(t){ drawGrid(t); drawFX(t); requestAnimationFrame(loop); }
+    requestAnimationFrame(loop);
+
+    // ====== Fancy Cursor & Magnetic buttons ======
+    const cursor = document.querySelector('.cursor');
+    const dot = document.querySelector('.cursor-dot');
+    let cx=0, cy=0, dx=0, dy=0; 
+    addEventListener('mousemove', e=>{ cx=e.clientX; cy=e.clientY; dot.style.left=cx+'px'; dot.style.top=cy+'px'; });
+    function cursorLoop(){ dx += (cx-dx)*0.12; dy += (cy-dy)*0.12; cursor.style.left = dx+'px'; cursor.style.top = dy+'px'; requestAnimationFrame(cursorLoop); }
+    cursorLoop();
+
+    document.querySelectorAll('.magnetic').forEach(btn=>{
+      btn.addEventListener('mousemove', e=>{
+        const r = btn.getBoundingClientRect();
+        const x = e.clientX - (r.left + r.width/2);
+        const y = e.clientY - (r.top + r.height/2);
+        btn.style.transform = `translate(${x*0.08}px,${y*0.12}px)`;
+      });
+      btn.addEventListener('mouseleave', ()=>{ btn.style.transform='translate(0,0)'; });
+    });
+
+    // Smooth scroll (Lenis)
+    const lenis = new Lenis({ smoothWheel:true, lerp:0.08 });
+    function raf(time){ lenis.raf(time); requestAnimationFrame(raf); }
+    requestAnimationFrame(raf);
+
+    // Scroll reveals
+    gsap.registerPlugin(ScrollTrigger);
+    gsap.utils.toArray('[data-tilt]').forEach(el=>{ el.style.transformPerspective='900px'; });
+    gsap.utils.toArray('section, .step, .rounded-2xl').forEach((el)=>{
+      gsap.from(el, { y: 20, opacity: 0, duration: .8, ease: 'power2.out', scrollTrigger: { trigger: el, start: 'top 85%' } });
+    });
+
+    // ====== Model ======
+    const LABELS = ['Trust','Reciprocity','Authority','Consensus','Intimidation','Deception','Urgency','Scarcity'];
+
+    // Category colors for highlights
+    const CAT_COLOR = {
+      trust: '#7ee7ff',
+      reciprocity: '#9af2ff',
+      authority: '#69d1ff',
+      consensus: '#7ad4ff',
+      intimidation: '#ff9ba5',
+      deception: '#ffdf7e',
+      urgency: '#ffd09b',
+      scarcity: '#c6ff8a',
+      lures: '#b58cff'
+    };
+
+    const KEYWORDS = {
+      trust: [
+        'friend','trusted','trust','colleague','coworker','co-worker','partner',
+        'internal','same team','security team','it desk','helpdesk','help desk',
+        'verify identity','known contact','as discussed','per our call','cc\'d manager',
+        'fyi','following up','approved vendor','official notice','company policy',
+        'confidentially','do not share','backchannel','from hr','hr notice'
+      ],
+
+      reciprocity: [
+        'gift','gift card','voucher','coupon','cashback','free','reward','bonus',
+        'compliment','favour','favor','rebate','loyalty points','redeem',
+        'claim your reward','redeem now','credit applied','goodwill','on us',
+        'exclusive offer','token of appreciation','thanks for your help',
+        'survey reward','lucky draw','prize','winner','congratulations'
+      ],
+
+      authority: [
+        'admin','administrator','root','system admin','it support','helpdesk',
+        'official','verified','certified','authority','bank','payments team',
+        'security team','compliance','legal','ceo','cfo','cto','manager','vp',
+        'hr','payroll','finance','audit','irs','income tax','revenue service',
+        'court','police','law enforcement','reserve bank','support team',
+        'account team','billing','service desk','apple id','microsoft account',
+        'google account','amazon support'
+      ],
+
+      consensus: [
+        'consensus','social proof','everyone is doing this','as others have done',
+        'team uses this','company-wide','standard process','per policy',
+        'approved approach','common practice','industry standard','joined already',
+        'most employees','as discussed with the team','as per consensus',
+        'group decision','per majority','already confirmed by others','all set by others',
+        'recommended by many','popular request','customers like you'
+      ],
+
+      intimidation: [
+        'penalty','fine','legal','lawsuit','court','summons','criminal','investigation',
+        'compliance breach','disciplinary','terminate','termination','fire','suspend'
+      ],
+
+      deception: [
+        'click here','login','log in','sign in','update your','password','passcode',
+        'reset now','unlock','recover account','verify account','confirm account',
+        'attachment','invoice attached','payment remittance','wire instructions',
+        'document shared','view file','secure message','single sign-on','sso',
+        'oauth','verification code','otp','one-time code','qr code','scan code',
+        'short link','bit.ly','tinyurl','ow.ly','buff.ly','t.co','goo.gl',
+        'drive link','sharepoint link','onedrive link','dropbox link',
+        'tracking link','shipping update','package held','delivery exception',
+        'fake antivirus','license expired','subscription expired'
+      ],
+
+      urgency: [
+        'immediately','now','right now','asap','urgent','action required',
+        'respond urgently','today','within 24','within 12','within 1 hour',
+        'deadline','expires today','final notice','last chance','before account closes',
+        'time sensitive','don\'t delay','act fast','limited time','only today',
+        'payment due today','your access will be removed','respond before eod'
+      ],
+
+      scarcity: [
+        'only','limited','few','exclusive','spots left','quota full',
+        'last chance','running out','ends soon','offer ends tonight','low stock',
+        'while supplies last','invite-only','pre-approved','early access',
+        'priority list','first come first served','waitlist','limited seats',
+        'scarce','rare','hard to get'
+      ],
+
+      // Optional “lure” boosters
+      lures: [
+        'gift card request','steam card','apple gift card','google play card','amazon card',
+        'crypto'
+      ]
+    };
+
+    function buildRegExp(token){
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      if (/^[a-zA-Z]+$/.test(token) && token.length <= 4) {
+        return new RegExp(`\\b${escaped}\\b`, 'gi');
+      }
+      return new RegExp(escaped,'gi');
+    }
+
+    function scanTextDetailed(text){
+      const s = (text||'');
+      const matchesByCat = {}; const hitsByCat = {};
+      for (const cat of Object.keys(KEYWORDS)){
+        matchesByCat[cat] = []; hitsByCat[cat] = 0;
+        for (const pat of KEYWORDS[cat]){
+          const re = buildRegExp(pat.toLowerCase());
+          const local = [...s.toLowerCase().matchAll(re)].map(m=>m[0]);
+          if (local.length){ hitsByCat[cat] += local.length; matchesByCat[cat].push({ phrase: pat, count: local.length }); }
+        }
+      }
+      const axes = ['trust','reciprocity','authority','consensus','intimidation','deception','urgency','scarcity'];
+      const axisValues = axes.map(a => hitsByCat[a]||0);
+      const maxHits = Math.max(1, ...axisValues);
+      const scaled = {}; axes.forEach(a => { scaled[a] = Math.round((hitsByCat[a]||0)/maxHits*100); });
+
+      const lureBoost = Math.min(30, (hitsByCat.lures||0) * 5);
+      const weight = { trust:1, reciprocity:1, authority:1.2, consensus:1, intimidation:1.5, deception:1.8, urgency:1.6, scarcity:1 };
+      let raw = 0; let maxRaw = 0; axes.forEach(a=>{ raw += (hitsByCat[a]||0)*weight[a]; maxRaw += (maxHits)*weight[a]; });
+      let baseScore = maxRaw? Math.min(100, Math.round((raw/maxRaw)*100)) : 0;
+      const extraSignals = [ /within\s+\d+\s*(minutes?|hours?|days?)/gi, /expires?\s+(today|tonight|tomorrow)/gi, /account\s+(locked|disabled|suspended)/gi, /update\s+(bank|payment|billing|beneficiary|details)/gi ];
+      let extraBoost = 0; extraSignals.forEach(re=>{ const c = (s.match(re)||[]).length; extraBoost += Math.min(10, c*3); });
+      const riskScore = Math.max(0, Math.min(100, baseScore + lureBoost + extraBoost));
+
+      const sorted = axes.map(a=>[a,hitsByCat[a]||0]).sort((a,b)=>b[1]-a[1]);
+      const top = sorted.filter(x=>x[1]>0).slice(0,3).map(x=>x[0]);
+      const summary = top.length ? 'Likely manipulation using: ' + top.map(t=>t[0].toUpperCase()+t.slice(1)).join(', ') + '.' : 'No strong manipulation signals detected.';
+      return { scaled, matchesByCat, hitsByCat, riskScore, summary };
+    }
+
+    // ====== Charts ======
+    const radarCtx = document.getElementById('radarCanvas').getContext('2d');
+    const radarChart = new Chart(radarCtx, {
+      type: 'radar',
+      data: {
+        labels: LABELS,
+        datasets: [{ label: 'TRACIDUS Score', data: Array(LABELS.length).fill(0), fill: true, backgroundColor: 'rgba(0,234,255,0.2)', borderColor: '#00eaff', pointBackgroundColor: '#00eaff', pointBorderColor: '#070b14' }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, scales: { r: { beginAtZero: true, suggestedMax: 100, grid: { color: 'rgba(0,234,255,0.25)', circular: true }, angleLines: { color: 'rgba(0,234,255,0.3)' }, pointLabels: { color: '#00eaff', font: { size: 13, weight: 'bold' } }, ticks: { color: '#00eaff', backdropColor: 'transparent', stepSize: 20 } } }, plugins: { legend: { display: false } } }
+    });
+
+    // Tiny hero radar loop for vibes only
+    const radarCtxHero = document.getElementById('radarCanvasHero').getContext('2d');
+    const radarHero = new Chart(radarCtxHero, {
+      type: 'radar',
+      data: { labels: LABELS, datasets: [{ data: [10,18,6,12,8,22,16,9], fill: true, backgroundColor: 'rgba(0,234,255,0.18)', borderColor: '#00eaff', pointBackgroundColor: '#00eaff', pointBorderColor: '#070b14' }]},
+      options: { responsive:true, maintainAspectRatio:false, scales:{ r:{ beginAtZero:true, suggestedMax:100, grid:{ color:'rgba(0,234,255,0.15)'}, angleLines:{ color:'rgba(0,234,255,0.2)'}, pointLabels:{ display:false }, ticks:{ display:false } } }, plugins:{ legend:{ display:false } } }
+    });
+
+    // ====== UI Helpers ======
+    function setRiskUI(score){
+      const bar = document.getElementById('riskBar');
+      const scoreEl = document.getElementById('riskScore');
+      const tag = document.getElementById('riskTag');
+      const note = document.getElementById('riskNote');
+      bar.style.width = score + '%';
+      bar.style.filter = `drop-shadow(0 0 12px rgba(0,234,255,${Math.min(1, score/60)}))`;
+      scoreEl.textContent = score;
+      let label = 'Neutral', noteText = 'No severe indicators detected.';
+      if (score >= 80){ label='Critical'; noteText='High probability of phishing/social engineering. Do not engage.'; }
+      else if (score >= 60){ label='High'; noteText='Multiple strong indicators. Verify via trusted channel.'; }
+      else if (score >= 40){ label='Elevated'; noteText='Some notable indicators. Proceed with caution.'; }
+      else if (score > 0){ label='Low'; noteText='Minor indicators present.'; }
+      tag.textContent = label; note.textContent = noteText;
+    }
+
+    function categoryCard(cat, items){
+      const pretty = cat[0].toUpperCase()+cat.slice(1);
+      const color = CAT_COLOR[cat] || '#bdeeff';
+      const wrap = document.createElement('div');
+      wrap.className = 'border border-cyan-400/30 rounded-2xl p-3 bg-cyberDeep/50';
+      const h = document.createElement('div');
+      h.className = 'font-semibold flex items-center justify-between';
+      h.innerHTML = `<span>${pretty}</span><span class="text-xs" style="color:${color}">${items.reduce((a,b)=>a+b.count,0)} hits</span>`;
+      const list = document.createElement('div');
+      list.className = 'mt-2 space-y-1 text-sm';
+      for (const m of items){
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2';
+        row.innerHTML = `<span class="truncate">${m.phrase}</span><span class="text-cyberBlue/60">×${m.count}</span>`;
+        list.appendChild(row);
+      }
+      if (!items.length){ list.innerHTML = '<span class="text-cyberBlue/50 text-sm">— None —</span>'; }
+      wrap.appendChild(h); wrap.appendChild(list); return wrap;
+    }
+
+    function renderExplain(matches){
+      const container = document.getElementById('explain');
+      container.innerHTML='';
+      const order = ['trust','reciprocity','authority','consensus','intimidation','deception','urgency','scarcity','lures'];
+      order.forEach(cat=>{ container.appendChild(categoryCard(cat, matches[cat]||[])); });
+    }
+
+    function escapeHtml(str){ return str.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    function highlightText(raw, matches){
+      const entries = [];
+      for (const [cat, arr] of Object.entries(matches)){ if (!arr) continue; for (const {phrase} of arr){ entries.push({ phrase, cat }); } }
+      entries.sort((a,b)=>b.phrase.length - a.phrase.length);
+      let result = escapeHtml(raw);
+      for (const {phrase, cat} of entries){
+        const color = CAT_COLOR[cat] || '#7ee7ff';
+        const re = buildRegExp(phrase.toLowerCase());
+        result = result.replace(new RegExp(re.source, 'gi'), m=>`<mark class="neon" style="outline:1px solid ${color}; box-shadow:0 0 8px ${color} inset;">${escapeHtml(m)}</mark>`);
+      }
+      return result;
+    }
+
+    function awardBadges(hits){
+      const badges = [];
+      if ((hits.deception||0) >= 3) badges.push('Link Sleuth');
+      if ((hits.intimidation||0) >= 2) badges.push('Threat Detective');
+      if ((hits.urgency||0) >= 2) badges.push('Time Pressure Pro');
+      if ((hits.lures||0) >= 1) badges.push('Lure Aware');
+      return badges.length? badges.join(' · '): 'None yet. Keep scanning!';
+    }
+
+    // ====== App Logic ======
+    function runScan(){
+      const text = document.getElementById('input').value || '';
+      if (!text.trim()){ alert('Please paste a message to scan'); return; }
+      const out = scanTextDetailed(text);
+      // Radar update
+      const arr = LABELS.map(l => out.scaled[l.toLowerCase()]||0);
+      radarChart.data.datasets[0].data = arr; radarChart.update();
+      // Summary & risk
+      document.getElementById('summary').textContent = out.summary;
+      setRiskUI(out.riskScore);
+      // Explainability panels
+      renderExplain(out.matchesByCat);
+      // Highlight view
+      document.getElementById('highlighted').innerHTML = highlightText(text, out.matchesByCat);
+      // Badges
+      document.getElementById('badges').textContent = awardBadges(out.hitsByCat);
+      // Counter (persist)
+      const scans = (Number(localStorage.getItem('tracidus_scans')||'0') + 1);
+      localStorage.setItem('tracidus_scans', String(scans));
+      document.getElementById('counter').textContent = scans;
+      document.getElementById('counterHero').textContent = scans + ' scans on this device';
+      // Save last result for export
+      window.__tracidusLast = { ...out, text };
+      // Tiny hero radar vibe spike
+      radarHero.data.datasets[0].data = arr.map(v=>Math.max(8, v*0.9));
+      radarHero.update();
+    }
+
+    document.getElementById('scanBtn').addEventListener('click', runScan);
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      document.getElementById('input').value = '';
+      radarChart.data.datasets[0].data = Array(LABELS.length).fill(0);
+      radarChart.update();
+      document.getElementById('summary').textContent = 'No strong manipulation signals detected.';
+      setRiskUI(0);
+      document.getElementById('explain').innerHTML='';
+      document.getElementById('highlighted').innerHTML='';
+    });
+
+    document.getElementById('sampleBtn').addEventListener('click', () => {
+      const sample = 'URGENT: Your bank account will be suspended. Click here to update your password now or you will face legal penalty. Respond within 24 hours.';
+      document.getElementById('input').value = sample;
+    });
+    document.getElementById('sample2Btn').addEventListener('click', () => {
+      const sample = 'Hi, I\'m from the IT support team. As discussed with your manager, please scan the QR code to verify identity and redeem your survey reward. This is the standard process and most employees have joined already.';
+      document.getElementById('input').value = sample;
+    });
+
+    // Export: PNG of radar
+    document.getElementById('exportPngBtn').addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = 'tracidus_radar.png';
+      link.href = document.getElementById('radarCanvas').toDataURL('image/png');
+      link.click();
+    });
+
+    // Export: JSON report
+    document.getElementById('exportJsonBtn').addEventListener('click', () => {
+      const data = window.__tracidusLast || { note: 'Run a scan first.' };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'tracidus_report.json'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Copy summary
+    document.getElementById('copySummaryBtn').addEventListener('click', () => {
+      const data = window.__tracidusLast; const summary = data? data.summary + ` Risk: ${data.riskScore}/100.` : 'Run a scan first.';
+      navigator.clipboard.writeText(summary).then(()=>{ 
+        const btn = document.getElementById('copySummaryBtn');
+        const old = btn.textContent; btn.textContent = '✅ Copied';
+        setTimeout(()=>btn.textContent=old, 1200);
+      });
+    });
+
+    // Init transparency counter
+    document.getElementById('counter').textContent = Number(localStorage.getItem('tracidus_scans')||'0');
+    document.getElementById('counterHero').textContent = Number(localStorage.getItem('tracidus_scans')||'0') + ' scans on this device';
+
+    // Sound FX toggle placeholder (no sounds loaded by default)
+    document.getElementById('soundToggle').addEventListener('click', (e)=>{ e.preventDefault(); const el=e.currentTarget; el.classList.toggle('bg-cyan-400/10'); el.textContent = el.textContent==='FX' ? 'FX: On' : 'FX'; });
+  </script>
+</body>
+</html>
