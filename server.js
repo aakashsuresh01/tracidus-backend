@@ -1,5 +1,5 @@
-// server.js (production-ready)
 require('dotenv').config();
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -15,6 +15,7 @@ const Joi = require('joi');
 const winston = require('winston');
 
 const app = express();
+
 const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 const API_PREFIX = '/api';
@@ -32,30 +33,49 @@ if (process.env.LOG_TO_FILE === '1') {
   );
 }
 logTransports.push(new winston.transports.Console({ format: winston.format.simple() }));
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
   transports: logTransports
 });
+
 app.use(morgan('combined', { stream: { write: msg => logger.info(msg.trim()) } }));
 
 // ----- security -----
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'same-site' },
-    contentSecurityPolicy: false
+    contentSecurityPolicy: false // Disable default CSP so we override below
   })
 );
+
+// Updated CSP to allow required external scripts, styles, and fonts
 app.use(
   helmet.contentSecurityPolicy({
     useDefaults: true,
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:'],
+      scriptSrc: [
+        "'self'",
+        "cdn.tailwindcss.com",
+        "cdn.jsdelivr.net",
+        "cdnjs.cloudflare.com",
+        "unpkg.com",
+        "'unsafe-inline'"
+      ],
+      styleSrc: [
+        "'self'",
+        "fonts.googleapis.com",
+        "'unsafe-inline'",
+        "cdn.jsdelivr.net",
+        "cdnjs.cloudflare.com"
+      ],
+      fontSrc: ["'self'", "fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "cdn.jsdelivr.net"],
       objectSrc: ["'none'"],
-      connectSrc: ["'self'"]
+      connectSrc: ["'self'"],
+      frameSrc: ["'self'"]
     }
   })
 );
@@ -64,6 +84,7 @@ app.use(
 const whitelist = (process.env.CORS_WHITELIST || 'http://localhost:3000,http://localhost:5000')
   .split(',')
   .map(s => s.trim());
+
 app.use(
   cors({
     origin: (origin, cb) => {
@@ -95,8 +116,7 @@ app.use(xssClean());
 app.use(hpp());
 app.use(compression());
 
-// ----- serve frontend -----
-// 👇 always serve from ./Public
+// ----- serve frontend static files -----
 const publicDir = path.join(__dirname, 'Public');
 app.use(express.static(publicDir));
 
@@ -139,17 +159,19 @@ function scanTextDetailed(text) {
     }
   });
 
-  const axes = ['trust','reciprocity','authority','consensus','intimidation','deception','urgency','scarcity'];
+  const axes = ['trust', 'reciprocity', 'authority', 'consensus', 'intimidation', 'deception', 'urgency', 'scarcity'];
   const scaled = {};
   const axisValues = axes.map(a => hitsByCat[a] || 0);
   const maxHits = Math.max(1, ...axisValues);
-  axes.forEach(a => { scaled[a] = Math.round(((hitsByCat[a]||0) / maxHits) * 100); });
+  axes.forEach(a => {
+    scaled[a] = Math.round(((hitsByCat[a] || 0) / maxHits) * 100);
+  });
 
   const riskScore = Math.min(
     100,
     (hitsByCat.deception || 0) * 10 +
-    (hitsByCat.urgency || 0) * 8 +
-    (hitsByCat.lures || 0) * 5
+      (hitsByCat.urgency || 0) * 8 +
+      (hitsByCat.lures || 0) * 5
   );
 
   const summary = Object.entries(hitsByCat)
@@ -167,11 +189,12 @@ function scanTextDetailed(text) {
 }
 
 // ----- routes -----
-// 👇 '/' is now handled by static serving Public/index.html
-// health checks are separate
+
+// Health checks
 app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
 app.get('/readyz', (req, res) => res.json({ status: 'ready' }));
 
+// Analyze API endpoint
 app.post(`${API_PREFIX}/analyze`, (req, res) => {
   try {
     const { error, value } = analyzeSchema.validate(req.body);
@@ -179,7 +202,6 @@ app.post(`${API_PREFIX}/analyze`, (req, res) => {
 
     const text = value.text;
     const maskedPreview = text.replace(/\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, '[REDACTED_CARD]');
-
     const result = scanTextDetailed(text);
 
     logger.info({
@@ -194,10 +216,10 @@ app.post(`${API_PREFIX}/analyze`, (req, res) => {
   }
 });
 
-// 404
+// 404 handler
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
-// error handler
+// generic error handler
 app.use((err, req, res, next) => {
   logger.error(err.stack || err.toString());
   res.status(500).json({ error: 'Unexpected error' });
